@@ -1,0 +1,7 @@
+__pycache__/
+*.pkl
+.env
+venv/
+env/
+.streamlit/
+movies.csv

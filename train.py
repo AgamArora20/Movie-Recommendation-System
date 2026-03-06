@@ -1,13 +1,13 @@
 import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import joblib
+import pickle
 import os
 
 def load_or_download_data():
     dataset_url = 'https://raw.githubusercontent.com/rashida048/Some-NLP-Projects/master/movie_dataset.csv'
     if not os.path.exists('movie_dataset.csv'):
-        print("Downloading latest TMDB 5000 movies dataset for ML training...")
+        print("Downloading dataset...")
         df = pd.read_csv(dataset_url)
         df.to_csv('movie_dataset.csv', index=False)
         return df
@@ -24,7 +24,13 @@ def train_model():
     
     # We will use the same features selected by entbappy for better accuracy
     features = ['genres', 'keywords', 'tagline', 'cast', 'director']
-    print(f"Pre-processing with features: {features}...")
+    
+    # Also want release_date to extract year, and vote_average
+    df['release_date'] = df['release_date'].fillna('1900-01-01')
+    df['year'] = pd.to_datetime(df['release_date'], errors='coerce').dt.year
+    df['year'] = df['year'].fillna(0).astype(int)
+    
+    df['vote_average'] = df['vote_average'].fillna(0.0)
     
     df = fill_missing(df, features)
     
@@ -33,25 +39,24 @@ def train_model():
         
     df['combined_features'] = df.apply(combine_features, axis=1)
     
-    print("Vectorizing text data using CountVectorizer (Bag of Words)...")
-    # Limiting features slightly to ensure small footprint but maintaining state-of-the-art results
+    print("Vectorizing text data using CountVectorizer...")
     cv = CountVectorizer(max_features=5000, stop_words='english')
     count_matrix = cv.fit_transform(df['combined_features'])
     
-    print("Computing cosine similarity (deep ML learning step)...")
+    print("Computing cosine similarity...")
     similarity = cosine_similarity(count_matrix)
     
-    print("Saving highly optimized ML matrix and DataFrames...")
-    # Save the id, title, and other required info. 
-    # Use id for tmdb API lookups in the app.
-    movies_df = df[['id', 'title']]
+    print("Saving ML metrics to artifacts...")
+    movies_df = df[['id', 'title', 'year', 'vote_average']]
     movies_df.rename(columns={'id': 'movie_id'}, inplace=True)
     
-    joblib.dump(movies_df, 'movies_list.pkl')
-    # Using compression so that the huge similarity matrix is much smaller
-    joblib.dump(similarity, 'similarity.pkl', compress=3)
+    os.makedirs('artifacts', exist_ok=True)
     
-    print("Models completely trained and saved successfully! Proceed with `streamlit run app.py`.")
+    # To match his structure, we save as a dictionary using pickle
+    pickle.dump(movies_df.to_dict(), open('artifacts/movie_dict.pkl', 'wb'))
+    pickle.dump(similarity, open('artifacts/similarity.pkl', 'wb'))
+    
+    print("Models computed and saved in artifacts/")
 
 if __name__ == '__main__':
     train_model()
